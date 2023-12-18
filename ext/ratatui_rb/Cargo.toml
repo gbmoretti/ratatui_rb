@@ -1,0 +1,13 @@
+[package]
+name = "ratatui_rb"
+version = "0.1.0"
+edition = "2021"
+authors = ["Guilherme Moretti <guilherme.moretti@powerhrg.com>"]
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+magnus = { version = "0.4" }

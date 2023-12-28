@@ -1,44 +1,95 @@
-use std::io::stdout;
+use magnus::Object;
+use magnus::define_module;
+use magnus::function;
+use anyhow::Result;
+use crossterm::{
+  event::{self, Event::Key, KeyCode::Char},
+  execute,
+  terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use ratatui::{
+  prelude::{CrosstermBackend, Terminal, Frame},
+  widgets::Paragraph,
+};
 
-use crossterm::{ExecutableCommand, terminal::{EnterAlternateScreen, enable_raw_mode, LeaveAlternateScreen, disable_raw_mode}};
-use magnus::{define_module, function, prelude::*, Error};
-use anyhow::{Ok, Result};
-use ratatui::{Terminal, backend::CrosstermBackend};
+
+fn startup() -> Result<()> {
+  enable_raw_mode()?;
+  execute!(std::io::stderr(), EnterAlternateScreen)?;
+  Ok(())
+}
+
+fn shutdown() -> Result<()> {
+  execute!(std::io::stderr(), LeaveAlternateScreen)?;
+  disable_raw_mode()?;
+  Ok(())
+}
+
+// App state
+struct App {
+  counter: i64,
+  should_quit: bool,
+}
+
+// App ui render function
+fn ui(app: &App, f: &mut Frame) {
+  f.render_widget(Paragraph::new(format!("Counter: {}", app.counter)), f.size());
+}
+
+// App update function
+fn update(app: &mut App) -> Result<()> {
+  if event::poll(std::time::Duration::from_millis(250))? {
+    if let Key(key) = event::read()? {
+      if key.kind == event::KeyEventKind::Press {
+        match key.code {
+          Char('j') => app.counter += 1,
+          Char('k') => app.counter -= 1,
+          Char('q') => app.should_quit = true,
+          _ => {},
+        }
+      }
+    }
+  }
+  Ok(())
+}
+
+fn run() -> Result<()> {
+  // ratatui terminal
+  let mut t = Terminal::new(CrosstermBackend::new(std::io::stderr()))?;
+
+  // application state
+  let mut app = App { counter: 0, should_quit: false };
+
+  loop {
+    // application update
+    update(&mut app)?;
+
+    // application render
+    t.draw(|f| {
+      ui(&app, f);
+    })?;
+
+    // application exit
+    if app.should_quit {
+      break;
+    }
+  }
+
+  Ok(())
+}
 
 fn hello() -> bool {
-    let terminal = startup()?;
-    let result = main_loop(terminal)?;
-    finalize();
+  let result = startup().and(run());
 
-    if result.is_err() { return false; }
+  // teardown terminal before unwrapping Result of app run
+  _ = shutdown();
 
-    true
-}
+  return result.is_ok();
 
-fn startup() -> Result<Terminal<_>> {
-    stdout().execute(EnterAlternateScreen)?;
-    enable_raw_mode()?;
-    let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
-    terminal.clear()?;
-
-    Ok(terminal)
-}
-
-fn main_loop(terminal: Terminal<_>) -> Result<()> {
-    loop {
-
-    }
-}
-
-fn finalize() -> Result<()> {
-    stdout().execute(LeaveAlternateScreen)?;
-    disable_raw_mode()?;
-
-    Ok(())
 }
 
 #[magnus::init]
-fn init() -> Result<(), Error> {
+fn init() -> Result<(), magnus::Error> {
     let module = define_module("RatatuiRb")?;
     module.define_singleton_method("hello", function!(hello, 0))?;
     std::result::Result::Ok(())

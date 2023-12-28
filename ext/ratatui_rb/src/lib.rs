@@ -84,7 +84,7 @@ fn hello() -> bool {
   // teardown terminal before unwrapping Result of app run
   _ = shutdown();
 
-  return result.is_ok();
+  result.is_ok()
 
 }
 
